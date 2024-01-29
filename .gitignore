@@ -8,11 +8,19 @@ __pycache__/
 
 /data/test/images/*
 /data/test/labels/*
+/data/test/*
 /data/train/images/*
 /data/train/labels/*
+/data/train/*
 /data/valid/images/*
 /data/valid/labels/*
+/data/valid/*
+/data/videos/*
 !/data/*.yaml
+
+/models/*
+
+/runs/*
 
 /all_data/
 
