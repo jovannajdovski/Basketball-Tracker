@@ -22,6 +22,7 @@ __pycache__/
 
 *.pt
 /runs/detect/train/weights/*
+!/models/best.pt
 
 /all_data/
 
