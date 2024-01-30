@@ -3,15 +3,15 @@ import cv2
 import cvzone
 import numpy as np
 from ultralytics import YOLO
-
+from collections import defaultdict
+import sys
 
 def score(ball_pos, hoop_pos):
     x = []
     y = []
     rim_height = hoop_pos[-1][0][1] - 0.5 * hoop_pos[-1][3]
 
-    # Get first point above rim and first point below rim
-    for i in reversed(range(len(ball_pos))):
+    for i in reversed(range(len(ball_pos)-1)):
         if ball_pos[i][0][1] < rim_height:
             x.append(ball_pos[i][0][0])
             y.append(ball_pos[i][0][1])
@@ -19,7 +19,6 @@ def score(ball_pos, hoop_pos):
             y.append(ball_pos[i+1][0][1])
             break
 
-    # Create line from two points
     if len(x) > 1:
         m, b = np.polyfit(x, y, 1)
         print(x, y)
@@ -31,7 +30,6 @@ def score(ball_pos, hoop_pos):
             return True
 
 
-# Detects if the ball is below the net - used to detect shot attempts
 def detect_down(ball_pos, hoop_pos):
     y = hoop_pos[-1][0][1] + 0.5 * hoop_pos[-1][3]
     if ball_pos[-1][0][1] > y:
@@ -39,14 +37,13 @@ def detect_down(ball_pos, hoop_pos):
     return False
 
 
-# Detects if the ball is around the backboard - used to detect shot attempts
 def detect_up(ball_pos, hoop_pos):
     x1 = hoop_pos[-1][0][0] - 4 * hoop_pos[-1][2]
     x2 = hoop_pos[-1][0][0] + 4 * hoop_pos[-1][2]
     y1 = hoop_pos[-1][0][1] - 2 * hoop_pos[-1][3]
-    y2 = hoop_pos[-1][0][1]
+    y2 = hoop_pos[-1][0][1] - 0.5 * hoop_pos[-1][3]
 
-    if x1 < ball_pos[-1][0][0] < x2 and y1 < ball_pos[-1][0][1] < y2 - 0.5 * hoop_pos[-1][3]:
+    if x1 < ball_pos[-1][0][0] < x2 and y1 < ball_pos[-1][0][1] < y2:
         return True
     return False
 
@@ -68,34 +65,28 @@ def in_hoop_region(center, hoop_pos):
 
 
 def clean_ball_pos(ball_pos, frame_count):
-    # Removes inaccurate ball size to prevent jumping to wrong ball
     if len(ball_pos) > 1:
-        # Width and Height
         w1 = ball_pos[-2][2]
         h1 = ball_pos[-2][3]
         w2 = ball_pos[-1][2]
         h2 = ball_pos[-1][3]
 
-        # X and Y coordinates
         x1 = ball_pos[-2][0][0]
         y1 = ball_pos[-2][0][1]
         x2 = ball_pos[-1][0][0]
         y2 = ball_pos[-1][0][1]
 
-        # Frame count
         f1 = ball_pos[-2][1]
         f2 = ball_pos[-1][1]
         f_dif = f2 - f1
 
         dist = math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
-
         max_dist = 4 * math.sqrt((w1) ** 2 + (h1) ** 2)
 
         # Ball should not move a 4x its diameter within 5 frames
         if (dist > max_dist) and (f_dif < 5):
             ball_pos.pop()
 
-        # Ball should be relatively square
         elif (w2*1.4 < h2) or (h2*1.4 < w2):
             ball_pos.pop()
 
@@ -108,7 +99,6 @@ def clean_ball_pos(ball_pos, frame_count):
 
 
 def clean_hoop_pos(hoop_pos):
-    # Prevents jumping from one hoop to another
     if len(hoop_pos) > 1:
         x1 = hoop_pos[-2][0][0]
         y1 = hoop_pos[-2][0][1]
@@ -126,28 +116,26 @@ def clean_hoop_pos(hoop_pos):
         f_dif = f2-f1
 
         dist = math.sqrt((x2-x1)**2 + (y2-y1)**2)
-
         max_dist = 0.5 * math.sqrt(w1 ** 2 + h1 ** 2)
 
         # Hoop should not move 0.5x its diameter within 5 frames
         if dist > max_dist and f_dif < 5:
             hoop_pos.pop()
 
-        # Hoop should be relatively square
         if (w2*1.3 < h2) or (h2*1.3 < w2):
             hoop_pos.pop()
 
-    # Remove old points
     if len(hoop_pos) > 25:
         hoop_pos.pop(0)
 
     return hoop_pos
 
 
-def run_shot_detector():
+def run_shot_detector(video_path):
+    # video_path = "./data/videos/test_video_7.mp4"
     model = YOLO("./models/best.pt")
     class_names = ['Basketball', 'Basketball Rim']
-    cap = cv2.VideoCapture("./data/videos/test_video_4.mp4")
+    cap = cv2.VideoCapture(video_path)
 
     ball_pos = []
     hoop_pos = []
@@ -163,12 +151,32 @@ def run_shot_detector():
     overlay_color = (0, 0, 0)
 
     while True:
-        ret, frame = cap.read()
+        success, frame = cap.read()
 
-        if not ret:
+        if not success:
             break
 
-        results = model(frame, stream=True)
+        # Tracker currently are not as good as detection frame by frame
+        
+        # results = model.track(frame, persist=True, verbose=False, tracker="bytetrack.yaml")
+        # boxes = results[0].boxes
+        # if boxes.id is not None:
+        #     track_ids = results[0].boxes.id.int().tolist()
+
+        # for box, track_id in zip(boxes, track_ids):
+        #     x1, y1, x2, y2 = box.xyxy.tolist()[0]
+        #     x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
+        #     w, h = x2 - x1, y2 - y1
+
+        #     # x1, y1, w, h = box.xywh.tolist()[0]
+        #     # x1, y1, w, h = int(x1), int(y1), int(w), int(h)
+
+        #     conf = math.ceil((box.conf.item() * 100)) / 100
+        #     cls = int(box.cls.item())
+        #     current_class = class_names[cls]
+        #     center = (int(x1 + w / 2), int(y1 + h / 2))
+
+        results = model(frame, stream=True, verbose=False)
 
         for r in results:
             boxes = r.boxes
@@ -183,7 +191,7 @@ def run_shot_detector():
 
                 if (conf > .3 or (in_hoop_region(center, hoop_pos) and conf > 0.15)) and current_class == "Basketball":
                     ball_pos.append((center, frame_count, w, h, conf))
-                    cvzone.cornerRect(frame, (x1, y1, w, h))
+                    cvzone.cornerRect(frame, (x1, y1, w, h), colorR=(255,0,0), colorC=(255,0,0))
 
                 if conf > .5 and current_class == "Basketball Rim":
                     hoop_pos.append((center, frame_count, w, h, conf))
@@ -223,8 +231,13 @@ def run_shot_detector():
                         fade_counter = fade_frames
 
         text = f"{makes} / {attempts}"
-        cv2.putText(frame, text, (50, 125), cv2.FONT_HERSHEY_SIMPLEX, 3, (255, 255, 255), 6)
-        cv2.putText(frame, text, (50, 125), cv2.FONT_HERSHEY_SIMPLEX, 3, (0, 0, 0), 3)
+        cvzone.putTextRect(
+            frame, text, (50, 100),
+            scale=4, thickness=4,
+            colorT=(255, 255, 255), colorR=(0, 0, 0),
+            offset=12,
+            border=3, colorB=(255, 255, 0)
+        )
 
         if fade_counter > 0:
             alpha = 0.2 * (fade_counter / fade_frames)
@@ -233,7 +246,8 @@ def run_shot_detector():
 
         cv2.imshow('Frame', frame)
 
-        if cv2.waitKey(1) & 0xFF == ord('q'):
+        key = cv2.waitKey(1)
+        if key == ord('q'):
             break
 
         frame_count += 1
@@ -242,4 +256,5 @@ def run_shot_detector():
     cv2.destroyAllWindows()
 
 if __name__ == "__main__":
-    run_shot_detector()
+    video_path = sys.argv[1]
+    run_shot_detector(video_path)
