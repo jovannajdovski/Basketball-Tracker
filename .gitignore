@@ -6,6 +6,26 @@ __pycache__/
 # C extensions
 *.so
 
+/data/test/images/*
+/data/test/labels/*
+/data/test/*
+/data/train/images/*
+/data/train/labels/*
+/data/train/*
+/data/valid/images/*
+/data/valid/labels/*
+/data/valid/*
+/data/videos/*
+!/data/*.yaml
+
+/models/*
+
+*.pt
+/runs/detect/train/weights/*
+!/models/best.pt
+
+/all_data/
+
 # Distribution / packaging
 .Python
 build/
