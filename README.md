@@ -26,3 +26,8 @@ python test.py
 ```Bash
 python shot_detector.py video_path
 ```
+
+
+
+https://github.com/jovannajdovski/Basketball-Tracker/assets/100165980/6ecc2eac-9fa0-43dc-9201-7d753a8ac7b3
+
